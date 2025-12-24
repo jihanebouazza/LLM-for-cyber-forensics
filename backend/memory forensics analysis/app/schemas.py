@@ -39,7 +39,6 @@ class MemoryImageBase(BaseModel):
     os_type: str
     acquired_at: datetime
     case_id: str
-    uploaded_by: str
 
 class MemoryImageCreate(MemoryImageBase):
     pass
@@ -110,3 +109,38 @@ class CaseTimelineItem(BaseModel):
 class CaseReportRequest(BaseModel):
     format: str = "markdown" # or pdf
     include_sections: List[str] = ["summary", "timeline", "findings"]
+
+class ChatRequest(BaseModel):
+    image_id: str
+    model: str = "llama3.1:8b"
+    user_prompt: Optional[str] = None
+
+# --- Chat History Schemas ---
+class ChatMessageBase(BaseModel):
+    role: str
+    content: str
+
+class ChatMessageCreate(ChatMessageBase):
+    model: str = "llama3.1:8b"
+
+class ChatMessage(ChatMessageBase):
+    id: str
+    session_id: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ChatSessionBase(BaseModel):
+    memory_image_id: str
+
+class ChatSessionCreate(ChatSessionBase):
+    pass
+
+class ChatSession(ChatSessionBase):
+    id: str
+    created_at: datetime
+    messages: List[ChatMessage] = []
+
+    class Config:
+        from_attributes = True

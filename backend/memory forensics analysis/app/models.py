@@ -18,7 +18,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     
-    memory_images = relationship("MemoryImage", back_populates="uploader")
+    email = Column(String, unique=True, index=True)
 
 class Case(Base):
     __tablename__ = "cases"
@@ -40,11 +40,10 @@ class MemoryImage(Base):
     file_hash = Column(String(255))
     os_type = Column(String(50))
     acquired_at = Column(DateTime(timezone=True))
-    uploaded_by = Column(String, ForeignKey("users.id"))
+    acquired_at = Column(DateTime(timezone=True))
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
     case = relationship("Case", back_populates="memory_images")
-    uploader = relationship("User", back_populates="memory_images")
     volatility_results = relationship("VolatilityResult", back_populates="memory_image")
     artifacts = relationship("Artifact", back_populates="memory_image")
 
@@ -75,3 +74,24 @@ class Artifact(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     memory_image = relationship("MemoryImage", back_populates="artifacts")
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    memory_image_id = Column(String, ForeignKey("memory_images.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memory_image = relationship("MemoryImage")
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    session_id = Column(String, ForeignKey("chat_sessions.id"))
+    role = Column(String(20)) # "user" or "assistant" (or "system")
+    content = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("ChatSession", back_populates="messages")

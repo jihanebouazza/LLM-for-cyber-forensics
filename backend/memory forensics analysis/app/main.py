@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends
 from .database import engine, Base
-from .routers import memory_images, volatility, artifacts, analysis, cases, upload
+from .routers import memory_images, volatility, artifacts, analysis, cases, upload, chat
 from . import models
 
 # Create tables
@@ -14,6 +14,7 @@ app.include_router(volatility.router)
 app.include_router(artifacts.router)
 app.include_router(analysis.router)
 app.include_router(cases.router)
+app.include_router(chat.router)
 
 @app.get("/")
 def read_root():
