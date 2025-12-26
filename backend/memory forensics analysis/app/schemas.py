@@ -1,6 +1,7 @@
 from typing import List, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
 
 # --- User Schemas ---
 class UserBase(BaseModel):
@@ -144,3 +145,29 @@ class ChatSession(ChatSessionBase):
 
     class Config:
         from_attributes = True
+# --- Structured AI Analysis Schemas ---
+class SuspiciousItem(BaseModel):
+    pid: Optional[int] = None
+    offset: Optional[int] = None
+    name: str
+    threat_level: str  # e.g., "Low", "Medium", "High"
+    reason: str
+    category: str = Field(..., description="e.g., Persistence, Stealth, System")
+    metadata: Optional[Dict[str, Any]] = Field(default={}, description="Additional item-specific data")
+
+
+class StructuredAnalysisResponse(BaseModel):
+    image_id: str
+    model: str
+
+    # --- New Strategic Fields ---
+    verdict: str = Field(..., description="One of: Clean, Suspicious, Infected, or Unknown")
+    confidence_score: float = Field(..., ge=0.0, le=1.0)
+    analysis_type: str = "memory_forensics"  # Helps the Brain API identify the source
+
+    suspicious_items: List[SuspiciousItem] = Field(..., description="Only high or medium threat items")
+    full_inventory: List[SuspiciousItem] = Field(..., description="Exhaustive list of all items analyzed")
+    summary: str
+    artifacts_analyzed: int
+
+    # --- Optional: For Brain API Correlation ---

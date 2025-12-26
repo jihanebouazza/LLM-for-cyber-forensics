@@ -204,7 +204,7 @@ If all look normal, say "No threats detected" and list what you saw."""
             
             data_bytes = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(OLLAMA_URL, data=data_bytes, headers={'Content-Type': 'application/json'})
-            
+
             with urllib.request.urlopen(req, timeout=500) as response:  # 2 minute timeout
                 result_body = response.read().decode("utf-8")
                 result_json = json.loads(result_body)

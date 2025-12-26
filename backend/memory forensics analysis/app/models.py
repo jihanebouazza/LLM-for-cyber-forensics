@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import Column, String, Integer, BigInteger, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -68,6 +68,7 @@ class Artifact(Base):
     name = Column(String(255))
     path = Column(Text)
     pid = Column(Integer, nullable=True)
+    offset = Column(BigInteger, nullable=True)
     port = Column(Integer, nullable=True)
     state = Column(String(50), nullable=True)
     extra_metadata = Column(JSON, nullable=True)

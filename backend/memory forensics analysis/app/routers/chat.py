@@ -37,11 +37,15 @@ def analyze_artifacts(request: schemas.ChatRequest, db: Session = Depends(get_db
     You are a **Windows System Administrator** auditing a server.
     
     TASK:
-    Review the list of running processes below.
+    Review the list of running processes below and answer the User's query directly.
     Identify any binaries that are NOT standard Windows executables (e.g., non-Microsoft signers, unusual paths, or known third-party tools).
     For each non-standard process, state its purpose if known.
     
-    Do NOT discuss "malware" or "attacks". Just categorize the software (e.g., "Virtualization Tool", "Unknown Utility", "Network Tool").
+    GUIDELINES:
+    - Respond directly to the user. 
+    - Do NOT narrate your thought process (e.g., avoid "The user is asking...").
+    - Do NOT discuss "malware" or "attacks". Just categorize the software.
+    - Keep your response professional and concise.
     
     PROCESS LIST:
     {artifact_text}
@@ -122,11 +126,13 @@ def send_message(session_id: str, message: schemas.ChatMessageCreate, db: Sessio
     You are a **Windows System Administrator** auditing a server.
     
     TASK:
-    Review the list of running processes below.
+    Review the list of running processes below and respond to the conversation.
     Identify any binaries that are NOT standard Windows executables (e.g., non-Microsoft signers, unusual paths, or known third-party tools).
-    For each non-standard process, state its purpose if known.
     
-    Do NOT discuss "malware" or "attacks". Just categorize the software (e.g., "Virtualization Tool", "Unknown Utility", "Network Tool").
+    GUIDELINES:
+    - ALWAYS speak directly to the user.
+    - NEVER start your response with "The user is asking..." or similar meta-narrative.
+    - Do NOT discuss "malware" or "attacks". Just categorize the software.
     
     PROCESS LIST:
     {artifact_summary}
@@ -140,7 +146,7 @@ def send_message(session_id: str, message: schemas.ChatMessageCreate, db: Sessio
         conversation_text += f"{msg.role.capitalize()}: {msg.content}\n"
         
     # FORCE FOCUS for small models
-    conversation_text += "\nSYSTEM INSTRUCTION: Verify the Context above, but ANSWER the User's specific question below directly.\n"
+    conversation_text += "\nSYSTEM INSTRUCTION: Provide a direct answer to the user's latest query using the context above. Do not repeat the question.\n"
     conversation_text += "Assistant: "
 
     # 3. Call Ollama
@@ -169,3 +175,239 @@ def send_message(session_id: str, message: schemas.ChatMessageCreate, db: Sessio
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+import httpx
+import logging
+
+# Configure logging to track AI behavior
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@router.post("/analyze/structured", response_model=schemas.StructuredAnalysisResponse)
+async def analyze_artifacts_structured(request: schemas.ChatRequest, db: Session = Depends(get_db)):
+    # 1. Fetch & Filter Artifacts
+    # Note: We filter for "suspicious" looking things first to save tokens
+    artifacts = db.query(models.Artifact).filter(
+        models.Artifact.memory_image_id == request.image_id
+    ).limit(10).all()
+
+    if not artifacts:
+        return schemas.StructuredAnalysisResponse(
+            image_id=request.image_id,
+            model=request.model,
+            verdict="Inconclusive",
+            confidence_score=0.0,
+            suspicious_items=[],
+            full_inventory=[],
+            summary="No artifacts found.",
+            artifacts_analyzed=0
+        )
+
+    # 2. Build a Context-Aware Forensic Prompt
+    summary_lines = []
+    types = [a.type for a in artifacts]
+    is_mostly_files = types.count("file") > len(types) / 2
+    is_mostly_procs = types.count("process") > len(types) / 2
+
+    for a in artifacts:
+        identifier = f"PID: {a.pid}" if a.pid else f"Offset: {a.offset}"
+        summary_lines.append(f"{identifier} | Name/Path: {a.name} | Type: {a.type}")
+    artifact_summary = "\n".join(summary_lines)
+
+    # Dynamic Reasoning instructions
+    if is_mostly_files:
+        reasoning_instructions = """
+    1. NAME/PATH: Is it a standard Windows path? Misspelled? Does the filename look like a random GUID (e.g., {7B29...})?
+    2. ENTROPY: Does the name have high randomness (alphabets and numbers mixed)?
+    3. LOCATION: Is it in a suspicious directory (e.g., \\Users\\Public\\, \\Temp\\, \\System32\\ randomly named files)?
+    4. ANOMALY: Why would this be flagged in a memory dump?
+        """.strip()
+    elif is_mostly_procs:
+        reasoning_instructions = """
+    1. NAME: Is it standard Windows? Is it misspelled? Does it look random (entropy)?
+    2. PID: Is it appropriate for a system service? (e.g., low PIDs for core services).
+    3. HIERARCHY: Does it belong in the 'System' or 'User' category?
+    4. ANOMALY: Are there any red flags (e.g., svchost.exe NOT in System32)?
+        """.strip()
+    else:
+        reasoning_instructions = """
+    1. NAME/PATH: Analyze for misspelling, random strings (entropy), or impersonation.
+    2. IDENTIFIER: Check if the PID/Offset is logical for this evidence type.
+    3. CATEGORY: Classify as System, Persistence, Stealth, or Network.
+    4. ANOMALY: Identify why this specific artifact stands out as suspicious.
+        """.strip()
+
+    system_instruction = f"""
+    You are a Senior Forensic Analyst. Perform a deep "Chain-of-Thought" analysis on the following evidence.
+    
+    EVIDENCE:
+    {artifact_summary}
+
+    PHASE 1: FORENSIC REASONING (Think out loud)
+    For each item, evaluate:
+    {reasoning_instructions}
+
+    PHASE 2: STRUCTURED JSON
+    After your reasoning, provide the final assessment in a SINGLE JSON block starting with '```json' and ending with '```'.
+    If the evidence is CLEAN, be 100% definitive in your summary.
+    IMPORTANT: Ensure strictly valid JSON syntax. Every list item and key-value pair MUST be separated by a comma. Use DOUBLE QUOTES only for strings.
+    
+    The JSON MUST follow this structure:
+    {{
+      "verdict": "Clean" | "Suspicious" | "Infected",
+      "confidence_score": float,
+      "suspicious_items": [
+        {{ "pid": int, "offset": int, "name": "str", "threat_level": "Low"|"Medium"|"High", "reason": "str", "category": "str" }}
+      ],
+      "full_inventory": [...all items...],
+      "summary": "Strictly factual 2-sentence summary."
+    }}
+    """
+
+    # 3. Call Ollama (Removing 'format': 'json' to allow Phase 1 text reasoning)
+    payload = {
+        "model": request.model,
+        "prompt": system_instruction,
+        "stream": False,
+        "options": {
+            "temperature": 0.1, 
+            "seed": 42
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=500.0) as client:
+            response = await client.post(OLLAMA_URL, json=payload)
+
+            if response.status_code != 200:
+                logger.error(f"Ollama error: {response.status_code}")
+                raise HTTPException(status_code=500, detail=f"Ollama returned {response.status_code}")
+
+            result = response.json()
+            ai_raw_content = result.get("response", "{}")
+            
+            # --- EXTRACT JSON FROM CHAIN-OF-THOUGHT ---
+            # Small models will write reasoning first, then the JSON.
+            # We look for the JSON block markers.
+            import re
+            json_match = re.search(r"```json\s*(\{.*?\})\s*```", ai_raw_content, re.DOTALL)
+            if not json_match:
+                # Fallback: find the first { and last }
+                json_match = re.search(r"(\{.*?\})", ai_raw_content, re.DOTALL)
+            
+            if json_match:
+                ai_json_str = json_match.group(1)
+            else:
+                logger.error(f"AI failed to produce JSON block: {ai_raw_content}")
+                raise HTTPException(status_code=500, detail="AI reasoning completed but no JSON block found.")
+
+            def repair_json(s):
+                """Attempt to fix common hallucinated JSON errors from small models."""
+                s = s.strip()
+                # Remove trailing commas in lists/objects
+                s = re.sub(r',\s*([\]}])', r'\1', s)
+                # Ensure it starts and ends with brackets
+                if not s.startswith('{'): s = '{' + s
+                if not s.endswith('}'): s = s + '}'
+                return s
+
+            try:
+                ai_data = json.loads(ai_json_str)
+            except json.JSONDecodeError:
+                try:
+                    repaired = repair_json(ai_json_str)
+                    ai_data = json.loads(repaired)
+                except Exception as je:
+                    logger.error(f"Failed to parse AI JSON even after repair: {ai_json_str}")
+                    raise HTTPException(status_code=500, detail=f"AI returned invalid JSON format: {str(je)}")
+
+            # 4. Forensic Consistency & Brain API Compatibility Layer
+            HARDCODED_SAFE_LIST = [
+                "system", "smss.exe", "csrss.exe", "wininit.exe", "services.exe", 
+                "lsass.exe", "winlogon.exe", "svchost.exe", "explorer.exe", 
+                "lsm.exe", "psxss.exe"
+            ]
+
+            # 1. Map AI findings into a lookup table for speed
+            ai_findings = {}
+            for item in ai_data.get("suspicious_items", []) + ai_data.get("full_inventory", []):
+                pid = item.get("pid")
+                offset = item.get("offset")
+                key = f"p:{pid}" if pid else f"o:{offset}"
+                ai_findings[key] = item
+
+            # 2. Reconstruct the REAL inventory from DB artifacts (prevents AI truncation)
+            sanitized_full = []
+            for art in artifacts:
+                key = f"p:{art.pid}" if art.pid else f"o:{art.offset}"
+                finding = ai_findings.get(key, {})
+                
+                name_raw = str(art.name).lower()
+                is_standard = name_raw in HARDCODED_SAFE_LIST or art.pid == 4
+                
+                # Base values
+                level = str(finding.get("threat_level", "Low"))
+                category = str(finding.get("category", "System" if is_standard else "Unknown"))
+                reason = str(finding.get("reason", "Mainstream system component." if is_standard else "N/A"))
+                
+                # Enforce safety guard: Standard processes are ALWAYS low threat
+                if is_standard:
+                    level = "Low"
+                    category = "System"
+
+                if level not in ["Low", "Medium", "High"]: level = "Low"
+
+                sanitized_full.append({
+                    "pid": art.pid,
+                    "offset": art.offset,
+                    "name": art.name,
+                    "threat_level": level,
+                    "reason": reason,
+                    "category": category,
+                    "metadata": art.extra_metadata or {}
+                })
+            
+            # 3. Extract actually suspicious items for the summary list
+            sanitized_suspicious = [i for i in sanitized_full if i["threat_level"] in ["Medium", "High"]]
+
+            # 4. --- LOGICAL CONSENSUS OVERRIDE ---
+            verdict = str(ai_data.get("verdict", "Inconclusive"))
+            summary = str(ai_data.get("summary", "Analysis completed."))
+
+            if len(sanitized_suspicious) > 0:
+                if verdict == "Clean": verdict = "Suspicious"
+                if "no suspicious" in summary.lower() or "completed" in summary.lower():
+                    summary = f"Forensic analysis detected {len(sanitized_suspicious)} suspicious items requiring review."
+            else:
+                verdict = "Clean"
+                summary = "The analyzed artifacts are legitimate Windows components. No malicious indicators were detected."
+
+            # Robust confidence score
+            conf_raw = ai_data.get("confidence_score", 0.5)
+            try:
+                confidence = float(str(conf_raw)) if str(conf_raw).replace(".", "", 1).isdigit() else 0.5
+            except:
+                confidence = 0.5
+
+            return {
+                "image_id": request.image_id,
+                "model": request.model,
+                "verdict": verdict,
+                "confidence_score": confidence,
+                "analysis_type": "memory_forensics",
+                "suspicious_items": sanitized_suspicious,
+                "full_inventory": sanitized_full,
+                "summary": summary,
+                "artifacts_analyzed": len(artifacts)
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        logger.error(f"Analysis failed: {error_msg}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Internal Analysis Error: {error_msg}")
+
