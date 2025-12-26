@@ -1,0 +1,196 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-02-15T09:00:01",
+      "log_level": "ERROR",
+      "raw_text": "Failed SSH login from 192.168.0.12",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-02-15T09:00:15",
+      "log_level": "ERROR",
+      "raw_text": "Failed SSH login from 192.168.0.12",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-02-15T09:01:00",
+      "log_level": "WARNING",
+      "raw_text": "Multiple failed SSH login attempts detected",
+      "category": "security"
+    },
+    {
+      "timestamp": "2025-02-15T09:01:45",
+      "log_level": "INFO",
+      "raw_text": "User root logged in successfully",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-02-15T09:02:30",
+      "log_level": "INFO",
+      "raw_text": "New SSH session established for user root",
+      "category": "session"
+    },
+    {
+      "timestamp": "2025-02-15T09:03:00",
+      "log_level": "WARNING",
+      "raw_text": "Suspicious command execution: nc -e /bin/bash",
+      "category": "process"
+    },
+    {
+      "timestamp": "2025-02-15T09:04:10",
+      "log_level": "ERROR",
+      "raw_text": "Unauthorized access attempt to /etc/passwd",
+      "category": "filesystem"
+    },
+    {
+      "timestamp": "2025-02-15T09:05:00",
+      "log_level": "INFO",
+      "raw_text": "Outbound connection initiated to 203.0.113.77 by root",
+      "category": "network"
+    },
+    {
+      "timestamp": "2025-02-15T09:06:20",
+      "log_level": "WARNING",
+      "raw_text": "Possible data exfiltration detected to external IP",
+      "category": "network"
+    },
+    {
+      "timestamp": "2025-02-15T09:07:45",
+      "log_level": "ERROR",
+      "raw_text": "Malware detected: trojan_xyz on host",
+      "category": "malware"
+    }
+  ],
+  "network": [
+    {
+      "timestamp_start": "2025-02-15T09:00:00",
+      "timestamp_end": "2025-02-15T09:00:05",
+      "src_ip": "192.168.0.12",
+      "src_port": 50234,
+      "dst_ip": "192.168.0.20",
+      "dst_port": 22,
+      "protocol": "TCP",
+      "action": "DENY",
+      "bytes_in": 100,
+      "bytes_out": 0,
+      "sensor": "fw-01"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:00:10",
+      "timestamp_end": "2025-02-15T09:00:15",
+      "src_ip": "192.168.0.12",
+      "src_port": 50235,
+      "dst_ip": "192.168.0.20",
+      "dst_port": 22,
+      "protocol": "TCP",
+      "action": "DENY",
+      "bytes_in": 120,
+      "bytes_out": 0,
+      "sensor": "fw-01"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:01:00",
+      "timestamp_end": "2025-02-15T09:01:30",
+      "src_ip": "192.168.0.12",
+      "src_port": 50236,
+      "dst_ip": "192.168.0.20",
+      "dst_port": 22,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 1500,
+      "bytes_out": 800,
+      "sensor": "fw-01"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:02:00",
+      "timestamp_end": "2025-02-15T09:02:20",
+      "src_ip": "192.168.0.20",
+      "src_port": 22,
+      "dst_ip": "198.51.100.42",
+      "dst_port": 80,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 3000,
+      "bytes_out": 1500,
+      "sensor": "ids-01"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:03:00",
+      "timestamp_end": "2025-02-15T09:03:10",
+      "src_ip": "192.168.0.20",
+      "src_port": 33333,
+      "dst_ip": "8.8.4.4",
+      "dst_port": 53,
+      "protocol": "UDP",
+      "action": "ALLOW",
+      "bytes_in": 200,
+      "bytes_out": 400,
+      "sensor": "dns-01"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:04:00",
+      "timestamp_end": "2025-02-15T09:04:45",
+      "src_ip": "192.168.0.20",
+      "src_port": 44444,
+      "dst_ip": "185.199.110.50",
+      "dst_port": 443,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 6000,
+      "bytes_out": 3000,
+      "sensor": "fw-02"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:05:00",
+      "timestamp_end": "2025-02-15T09:05:30",
+      "src_ip": "192.168.0.20",
+      "src_port": 55555,
+      "dst_ip": "45.33.32.200",
+      "dst_port": 8080,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 12000,
+      "bytes_out": 6000,
+      "sensor": "fw-02"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:06:00",
+      "timestamp_end": "2025-02-15T09:06:10",
+      "src_ip": "192.168.0.20",
+      "src_port": 66666,
+      "dst_ip": "203.0.113.100",
+      "dst_port": 21,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 500,
+      "bytes_out": 1000,
+      "sensor": "fw-02"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:06:30",
+      "timestamp_end": "2025-02-15T09:06:50",
+      "src_ip": "192.168.0.20",
+      "src_port": 77777,
+      "dst_ip": "198.51.100.50",
+      "dst_port": 4444,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 2000,
+      "bytes_out": 8000,
+      "sensor": "ids-02"
+    },
+    {
+      "timestamp_start": "2025-02-15T09:07:00",
+      "timestamp_end": "2025-02-15T09:07:30",
+      "src_ip": "192.168.0.20",
+      "src_port": 88888,
+      "dst_ip": "192.0.2.150",
+      "dst_port": 9001,
+      "protocol": "TCP",
+      "action": "ALLOW",
+      "bytes_in": 16000,
+      "bytes_out": 32000,
+      "sensor": "ids-02"
+    }
+  ]
+}
